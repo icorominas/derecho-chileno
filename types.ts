@@ -1,13 +1,12 @@
-export enum GameState {
-    CASE_SELECTION,
-    PRE_TRIAL,
-    IN_TRIAL,
-    TRIAL_END,
-}
-
-export interface CaseParty {
-    nombre: string;
-    rol: string;
+// Fix: Added export to all types to make them available for import in other files.
+export interface AvatarSettings {
+  hairstyle: 'corto' | 'medio' | 'largo' | 'recogido' | 'calvo';
+  hairColor: string;
+  facialHair: 'none' | 'barba' | 'bigote';
+  glasses: 'none' | 'redondas' | 'rectangulares';
+  skinTone: string;
+  suitColor: string;
+  tieColor: string;
 }
 
 export interface GlossaryTerm {
@@ -16,47 +15,65 @@ export interface GlossaryTerm {
     fuente?: string;
 }
 
+export interface CaseParty {
+    nombre: string;
+    rol: string;
+}
+
 export interface GuidedStep {
-    trigger: string; // e.g., 'pre-trial-drafting', 'trial-turn-1'
+    trigger: string;
     title: string;
     text: string;
 }
 
 export interface CaseDetails {
+    id?: string;
+    isGuided?: boolean;
     titulo: string;
     resumen: string;
     area: string;
     partes: CaseParty[];
     evidencia: string[];
     objetivoJugador: string;
-    dificultad: 'Introductorio' | 'Intermedio' | 'Avanzado';
+    dificultad: 'Introductorio' | 'Intermedio' | 'Avanzado' | string;
     esCivil: boolean;
-    glossary: GlossaryTerm[];
     entrevistaCliente: string;
-    objetivosDemanda: string;
-    isGuided?: boolean;
+    objetivosDemanda?: string;
+    glossary?: GlossaryTerm[];
     guidedSteps?: GuidedStep[];
+    hechosClave?: string[];
+    argumentoContrario?: string;
+    juez?: {
+        nombre: string;
+        personalidad: string;
+    };
 }
 
-export interface TrialStep {
-    accion: string;
-    narrativa: string;
-    submission?: string;
+export interface GameState {
+    stage: 'case-selection' | 'pre-trial' | 'trial' | 'end-screen' | 'appeal';
+    currentCase: CaseDetails | null;
+    caseHistory: CompletedCase[];
+    isLoading: boolean;
+    error: string | null;
+    username: string;
+    avatarSettings: AvatarSettings;
 }
 
-export interface StageFeedback {
-    analisis: string;
-    citaLegal?: string;
+export interface ADRProposal {
+    tipo: 'Transacción' | 'Mediación' | 'Arbitraje' | 'Acuerdo';
+    terminos: string;
 }
 
-export interface TrialContinuation {
-    narrativa: string;
-    opciones: string[];
-    juegoTerminado: boolean;
-    stageFeedback?: StageFeedback;
+export interface TrialEvent {
+    actor: 'JUEZ' | 'DEMANDANTE' | 'DEMANDADO' | 'SISTEMA' | 'JUGADOR';
+    texto: string;
+    esDecision?: boolean;
+    opciones?: string[];
+    esPropuestaADR?: boolean;
+    propuestaADR?: ADRProposal;
 }
 
-export interface Evaluation {
+export interface CaseEvaluation {
     puntaje: number;
     analisis: string;
     fortalezas: string;
@@ -64,18 +81,9 @@ export interface Evaluation {
     consejos: string;
 }
 
-export interface AvatarSettings {
-  hairstyle: 'corto' | 'medio' | 'largo' | 'calvo' | 'recogido';
-  hairColor: string;
-  skinTone: string;
-  suitColor: string;
-  tieColor: string;
-  facialHair: 'none' | 'barba' | 'bigote';
-  glasses: 'none' | 'redondas' | 'rectangulares';
-}
-
-export interface DemandEvaluation {
-    esAdmisible: boolean;
-    analisis: string;
-    narrativaSiguiente: string;
+export interface CompletedCase {
+    id: string;
+    caseDetails: CaseDetails;
+    evaluation: CaseEvaluation;
+    completedAt: string; // ISO string
 }

@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { LEGAL_AREAS } from '../constants';
 import LoadingSpinner from './LoadingSpinner';
 import { TUTORIAL_CASE_DESPIDO_INJUSTIFICADO } from '../guidedCases';
-import type { CaseDetails } from '../types';
+import type { CaseDetails, CompletedCase } from '../types';
+import CaseHistoryScreen from './CaseHistoryScreen';
 
 interface CaseSelectionScreenProps {
     onSelectCase: (area: string, isCivil: boolean) => void;
@@ -10,12 +11,23 @@ interface CaseSelectionScreenProps {
     isLoading: boolean;
     error: string | null;
     completedCases: number;
+    caseHistory: CompletedCase[];
     username:string;
     onUsernameChange: (name: string) => void;
 }
 
-const CaseSelectionScreen: React.FC<CaseSelectionScreenProps> = ({ onSelectCase, onSelectGuidedCase, isLoading, error, completedCases, username, onUsernameChange }) => {
+const CaseSelectionScreen: React.FC<CaseSelectionScreenProps> = ({ 
+    onSelectCase, 
+    onSelectGuidedCase, 
+    isLoading, 
+    error, 
+    completedCases,
+    caseHistory,
+    username, 
+    onUsernameChange 
+}) => {
     const [nameInput, setNameInput] = useState('');
+    const [view, setView] = useState<'main' | 'history'>('main');
 
     const getDifficultyInfo = () => {
         if (completedCases < 2) return { level: 'Introductorio', next: 'Intermedio', goal: 2 };
@@ -55,6 +67,10 @@ const CaseSelectionScreen: React.FC<CaseSelectionScreenProps> = ({ onSelectCase,
         );
     }
     
+    if (view === 'history') {
+        return <CaseHistoryScreen cases={caseHistory} onBack={() => setView('main')} />;
+    }
+
     const difficultyInfo = getDifficultyInfo();
 
     if (isLoading) {
@@ -64,7 +80,13 @@ const CaseSelectionScreen: React.FC<CaseSelectionScreenProps> = ({ onSelectCase,
     return (
         <div className="flex flex-col items-center animate-fade-in">
             <h2 className="text-3xl font-bold text-center mb-2 font-serif">Bienvenido de vuelta, Abogado {username}</h2>
-            <p className="text-lg text-slate-400 text-center mb-8">Elige un área del derecho para comenzar o perfecciona tus habilidades con un caso guiado.</p>
+            <div className='flex items-center gap-4'>
+                <p className="text-lg text-slate-400 text-center mb-4">Elige un área para comenzar o perfecciona tus habilidades con un caso guiado.</p>
+                <button onClick={() => setView('history')} className="mb-4 px-4 py-2 bg-slate-700 text-slate-200 rounded-md hover:bg-slate-600 transition-colors text-sm whitespace-nowrap">
+                    Ver Historial de Casos
+                </button>
+            </div>
+
 
             <div className="w-full max-w-4xl mb-12">
                 <h3 className="text-xl font-bold text-center mb-4 text-blue-300 font-serif border-b border-slate-700 pb-2">Casos Guiados (Tutorial)</h3>

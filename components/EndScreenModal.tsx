@@ -1,20 +1,16 @@
-
 import React from 'react';
-import type { Evaluation } from '../types';
+import type { CaseEvaluation, CaseDetails } from '../types';
 import LoadingSpinner from './LoadingSpinner';
 
 interface EndScreenModalProps {
     isOpen: boolean;
     onClose: () => void;
-    evaluation: Evaluation | null;
-    isLoading: boolean;
-    error: string | null;
+    evaluation: CaseEvaluation | null;
+    caseDetails: CaseDetails | null;
 }
 
-const EndScreenModal: React.FC<EndScreenModalProps> = ({ isOpen, onClose, evaluation, isLoading, error }) => {
-    if (!isOpen) {
-        return null;
-    }
+const EndScreenModal: React.FC<EndScreenModalProps> = ({ isOpen, onClose, evaluation, caseDetails }) => {
+    if (!isOpen) return null;
 
     const getScoreColor = (score: number) => {
         if (score >= 80) return 'text-green-400';
@@ -23,16 +19,17 @@ const EndScreenModal: React.FC<EndScreenModalProps> = ({ isOpen, onClose, evalua
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-fade-in">
             <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
                 <div className="p-6 border-b border-slate-700">
                     <h2 className="text-3xl font-bold text-center text-blue-300 font-serif">Veredicto y Evaluación</h2>
+                    <p className="text-center text-slate-400">{caseDetails?.titulo}</p>
                 </div>
                 
                 <div className="p-6 overflow-y-auto flex-grow">
-                    {isLoading && <LoadingSpinner message="El jurado está deliberando..." />}
-                    {error && !isLoading && <div className="bg-red-900 text-center border border-red-700 text-red-200 px-4 py-3 rounded-md">{error}</div>}
-                    {evaluation && !isLoading && (
+                    {!evaluation ? (
+                        <LoadingSpinner message="Calculando tu desempeño..." />
+                    ) : (
                         <div className="space-y-6">
                             <div className="text-center bg-slate-900 p-6 rounded-lg">
                                 <h3 className="text-lg font-semibold text-slate-400">Puntaje Final</h3>
@@ -61,7 +58,8 @@ const EndScreenModal: React.FC<EndScreenModalProps> = ({ isOpen, onClose, evalua
                 <div className="p-6 border-t border-slate-700 text-center">
                     <button
                         onClick={onClose}
-                        className="px-8 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-500 transition-colors w-full md:w-auto"
+                        className="px-8 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-500 transition-colors w-full md:w-auto disabled:bg-slate-600"
+                        disabled={!evaluation}
                     >
                         Volver al Menú Principal
                     </button>

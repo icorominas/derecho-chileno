@@ -1,278 +1,261 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
-
-// Types
-import { GameState, CaseDetails, TrialStep, Evaluation, StageFeedback, AvatarSettings, TrialContinuation } from './types';
-
-// Components
-import Header from './components/Header';
 import CaseSelectionScreen from './components/CaseSelectionScreen';
 import PreTrialScreen from './components/PreTrialScreen';
 import TrialScreen from './components/TrialScreen';
 import EndScreenModal from './components/EndScreenModal';
+import Header from './components/Header';
+import { generateCase, getNextTrialEvent, evaluatePerformance } from './services/geminiService';
+import type { GameState, CaseDetails, TrialEvent, CaseEvaluation, CompletedCase, AvatarSettings } from './types';
 import AvatarModal from './components/AvatarModal';
-
-// Services
-import { generateCase, advanceTrial, evaluatePerformance } from './services/geminiService';
-
-// Guided Cases
 import { TUTORIAL_CASE_DESPIDO_INJUSTIFICADO } from './guidedCases';
 
-const DEFAULT_AVATAR_SETTINGS: AvatarSettings = {
-  hairstyle: 'corto',
-  hairColor: '#4a2c20',
-  skinTone: '#d89c7c',
-  suitColor: '#334155',
-  tieColor: '#dc2626',
-  facialHair: 'none',
-  glasses: 'none',
+
+const initialAvatarSettings: AvatarSettings = {
+    hairstyle: 'corto',
+    hairColor: '#4a2c20',
+    facialHair: 'none',
+    glasses: 'none',
+    skinTone: '#f0c2a2',
+    suitColor: '#334155',
+    tieColor: '#dc2626',
 };
 
-const ORAL_TRIAL_DURATION = 5 * 60; // 5 minutes for oral trials
-
 function App() {
-  // Game state
-  const [gameState, setGameState] = useState<GameState>(GameState.CASE_SELECTION);
-  const [caseDetails, setCaseDetails] = useState<CaseDetails | null>(null);
-  const [trialHistory, setTrialHistory] = useState<TrialStep[]>([]);
-  const [narrative, setNarrative] = useState('');
-  const [stageFeedback, setStageFeedback] = useState<StageFeedback | null>(null);
-  const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
-
-  // UI state
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [playerInput, setPlayerInput] = useState('');
-  const [isReadOnly, setIsReadOnly] = useState(false);
-  
-  // Oral trial timer state
-  const [timeLeft, setTimeLeft] = useState(ORAL_TRIAL_DURATION);
-  const [isTimerActive, setTimerActive] = useState(false);
-
-  // User persistence
-  const [username, setUsername] = useState<string>(() => localStorage.getItem('abogadoSimuladoUser') || '');
-  const [completedCases, setCompletedCases] = useState<number>(() => parseInt(localStorage.getItem('abogadoSimuladoCompleted') || '0', 10));
-  const [avatarSettings, setAvatarSettings] = useState<AvatarSettings>(() => {
-    try {
-      const saved = localStorage.getItem('abogadoSimuladoAvatar');
-      return saved ? JSON.parse(saved) : DEFAULT_AVATAR_SETTINGS;
-    } catch {
-      return DEFAULT_AVATAR_SETTINGS;
-    }
-  });
-  const [isAvatarModalOpen, setAvatarModalOpen] = useState(false);
-
-
-  useEffect(() => {
-    localStorage.setItem('abogadoSimuladoUser', username);
-  }, [username]);
-  
-  useEffect(() => {
-    localStorage.setItem('abogadoSimuladoCompleted', completedCases.toString());
-  }, [completedCases]);
-
-  useEffect(() => {
-    localStorage.setItem('abogadoSimuladoAvatar', JSON.stringify(avatarSettings));
-  }, [avatarSettings]);
-
-
-  const handleReset = useCallback(() => {
-    setGameState(GameState.CASE_SELECTION);
-    setCaseDetails(null);
-    setTrialHistory([]);
-    setNarrative('');
-    setStageFeedback(null);
-    setEvaluation(null);
-    setIsLoading(false);
-    setError(null);
-    setPlayerInput('');
-    setIsReadOnly(false);
-    setTimeLeft(ORAL_TRIAL_DURATION);
-    setTimerActive(false);
-  }, []);
-
-  const getDifficulty = useCallback((): 'Introductorio' | 'Intermedio' | 'Avanzado' => {
-    if (completedCases < 2) return 'Introductorio';
-    if (completedCases < 5) return 'Intermedio';
-    return 'Avanzado';
-  }, [completedCases]);
-
-  const handleSelectCase = async (area: string, isCivil: boolean) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const difficulty = getDifficulty();
-      const newCase = await generateCase(area, isCivil, difficulty);
-      setCaseDetails(newCase);
-      setGameState(GameState.PRE_TRIAL);
-    } catch (err) {
-      setError("No se pudo generar el caso. Por favor, intenta de nuevo.");
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSelectGuidedCase = (guidedCase: CaseDetails) => {
-    setIsLoading(true);
-    setError(null);
-    // No API call, just load the predefined case
-    setTimeout(() => { // Simulate a small loading time for UX consistency
-        setCaseDetails(guidedCase);
-        setGameState(GameState.PRE_TRIAL);
-        setIsLoading(false);
-    }, 500);
-  };
-  
-  const handlePreTrialComplete = (initialHistory: TrialStep[], initialNarrative: string) => {
-    setTrialHistory(initialHistory);
-    setNarrative(initialNarrative);
-    setGameState(GameState.IN_TRIAL);
-    if (caseDetails && !caseDetails.esCivil) {
-        setTimeLeft(ORAL_TRIAL_DURATION);
-        setTimerActive(true);
-    }
-  };
-
-  const handleSubmitAction = async () => {
-    if (!caseDetails || !playerInput.trim()) return;
-
-    setIsLoading(true);
-    setError(null);
-    setStageFeedback(null);
+    const [gameState, setGameState] = useState<GameState>(() => {
+        try {
+            const savedState = localStorage.getItem('abogadoSimuladoState');
+            if (savedState) {
+                const parsed = JSON.parse(savedState);
+                // Ensure stage is reset on load to avoid being stuck in a case
+                return { ...parsed, stage: 'case-selection', currentCase: null, isLoading: false };
+            }
+        } catch (error) {
+            console.error("Failed to load state from localStorage", error);
+        }
+        return {
+            stage: 'case-selection',
+            currentCase: null,
+            caseHistory: [],
+            isLoading: false,
+            error: null,
+            username: '',
+            avatarSettings: initialAvatarSettings,
+        };
+    });
     
-    const newStep: TrialStep = {
-        accion: caseDetails.esCivil ? 'Presentación de Escrito' : 'Argumento Oral',
-        narrativa: `El jugador ${caseDetails.esCivil ? 'presentó un escrito' : 'argumentó oralmente'}.`,
-        submission: playerInput,
-    };
-    const updatedHistory = [...trialHistory, newStep];
-    setTrialHistory(updatedHistory);
+    const [trialHistory, setTrialHistory] = useState<TrialEvent[]>([]);
+    const [evaluation, setEvaluation] = useState<CaseEvaluation | null>(null);
+    const [isAiThinking, setIsAiThinking] = useState(false);
+    const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
 
-    try {
-        const continuation: TrialContinuation = await advanceTrial(caseDetails, updatedHistory, playerInput);
-        
-        setNarrative(prev => `${prev}\n\n---\n\n**Tu acción:** ${playerInput}\n\n${continuation.narrativa}`);
-        setStageFeedback(continuation.stageFeedback || null);
-        setPlayerInput('');
-        
-        if (continuation.juegoTerminado) {
-            setIsReadOnly(true);
-            setTimerActive(false);
-            // Wait a moment before concluding to let the user read the final narrative
-            setTimeout(() => handleConcludeTrial(updatedHistory), 3000);
+
+    useEffect(() => {
+        try {
+            const stateToSave = {
+                caseHistory: gameState.caseHistory,
+                username: gameState.username,
+                avatarSettings: gameState.avatarSettings
+            };
+            localStorage.setItem('abogadoSimuladoState', JSON.stringify(stateToSave));
+        } catch (error) {
+            console.error("Failed to save state to localStorage", error);
+        }
+    }, [gameState.caseHistory, gameState.username, gameState.avatarSettings]);
+
+    const handleReset = () => {
+        setGameState(prev => ({
+            ...prev,
+            stage: 'case-selection',
+            currentCase: null,
+            error: null,
+            isLoading: false,
+        }));
+        setTrialHistory([]);
+        setEvaluation(null);
+    };
+
+    const getDifficulty = useCallback(() => {
+        const completed = gameState.caseHistory.length;
+        if (completed < 2) return 'Introductorio';
+        if (completed < 5) return 'Intermedio';
+        return 'Avanzado';
+    }, [gameState.caseHistory.length]);
+
+    const handleSelectCase = async (area: string, isCivil: boolean) => {
+        setGameState(prev => ({ ...prev, isLoading: true, error: null }));
+        try {
+            const difficulty = getDifficulty();
+            const newCase = await generateCase(area, isCivil, difficulty);
+            setGameState(prev => ({ ...prev, currentCase: newCase, stage: 'pre-trial', isLoading: false }));
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Un error desconocido ocurrió.";
+            setGameState(prev => ({ ...prev, isLoading: false, error: errorMessage }));
+        }
+    };
+
+    const handleSelectGuidedCase = (guidedCase: CaseDetails) => {
+         setGameState(prev => ({ ...prev, currentCase: guidedCase, stage: 'pre-trial' }));
+    };
+
+    const handleStartTrial = (draft: string) => {
+        // For tutorial, actor is DEMANDANTE. For others, it's JUGADOR. Let's unify to JUGADOR and display differently.
+        const firstTurn: TrialEvent = { actor: 'JUGADOR', texto: draft };
+        setTrialHistory([firstTurn]);
+        setGameState(prev => ({ ...prev, stage: 'trial' }));
+        // Trigger AI's first response
+        handleAiTurn([firstTurn]);
+    };
+
+    const handleAiTurn = async (currentHistory: TrialEvent[]) => {
+        if (!gameState.currentCase) return;
+        setIsAiThinking(true);
+        try {
+            const nextEvent = await getNextTrialEvent(gameState.currentCase, currentHistory);
+            setTrialHistory(prev => [...prev, nextEvent]);
+            if (nextEvent.esDecision) {
+                await handleEndGame([...currentHistory, nextEvent]);
+            }
+        } catch (error) {
+             const errorMessage = error instanceof Error ? error.message : "Un error desconocido ocurrió.";
+             setTrialHistory(prev => [...prev, { actor: 'SISTEMA', texto: `Error: ${errorMessage}`, esDecision: false }]);
+        } finally {
+            setIsAiThinking(false);
+        }
+    };
+
+    const handleSubmitTurn = (text: string) => {
+        const newHistory: TrialEvent[] = [...trialHistory, { actor: 'JUGADOR', texto: text }];
+        setTrialHistory(newHistory);
+        handleAiTurn(newHistory);
+    };
+
+    const handleADRResponse = (responseType: 'accept' | 'reject' | 'counter', counterOfferText?: string) => {
+        const lastEvent = trialHistory[trialHistory.length - 1];
+        if (!lastEvent?.esPropuestaADR || !lastEvent.propuestaADR) return;
+
+        let newHistory: TrialEvent[];
+
+        if (responseType === 'accept') {
+            const acceptanceEvent: TrialEvent = {
+                actor: 'JUGADOR',
+                texto: `Acepto la propuesta de ${lastEvent.propuestaADR.tipo}.`,
+                esPropuestaADR: true, 
+                propuestaADR: lastEvent.propuestaADR
+            };
+            newHistory = [...trialHistory, acceptanceEvent];
+            setTrialHistory(newHistory);
+            handleEndGame(newHistory);
+            return;
         }
 
-    } catch (err) {
-        setError("Ocurrió un error al procesar tu acción. Inténtalo de nuevo.");
-        console.error(err);
-        // Revert history on error
-        setTrialHistory(trialHistory);
-    } finally {
-        setIsLoading(false);
-    }
-  };
+        if (responseType === 'reject') {
+            const rejectionEvent: TrialEvent = {
+                actor: 'JUGADOR',
+                texto: `Rechazamos la propuesta. Solicitamos continuar con el procedimiento.`
+            };
+            newHistory = [...trialHistory, rejectionEvent];
+        } else { // counter
+            const counterOfferEvent: TrialEvent = {
+                actor: 'JUGADOR',
+                texto: `No aceptamos los términos, pero proponemos la siguiente contraoferta: ${counterOfferText}`
+            };
+            newHistory = [...trialHistory, counterOfferEvent];
+        }
 
-  const handleConcludeTrial = async (finalHistory?: TrialStep[]) => {
-      const historyToEvaluate = finalHistory || trialHistory;
-      if (!caseDetails || historyToEvaluate.length === 0) {
-          handleReset(); // Nothing to evaluate, just reset.
-          return;
-      }
+        setTrialHistory(newHistory);
+        handleAiTurn(newHistory);
+    };
 
-      setGameState(GameState.TRIAL_END);
-      setIsLoading(true);
-      setError(null);
-      setTimerActive(false);
+    const handleEndGame = async (finalHistory: TrialEvent[]) => {
+        if (!gameState.currentCase) return;
+        setGameState(prev => ({ ...prev, stage: 'end-screen' }));
+        try {
+            const evalResult = await evaluatePerformance(gameState.currentCase, finalHistory);
+            setEvaluation(evalResult);
+            
+            // Do not save tutorial cases to history
+            if (!gameState.currentCase.isGuided) {
+                const completedCase: CompletedCase = {
+                    id: gameState.currentCase.id || crypto.randomUUID(),
+                    caseDetails: gameState.currentCase,
+                    evaluation: evalResult,
+                    completedAt: new Date().toISOString()
+                };
+                setGameState(prev => ({
+                    ...prev,
+                    caseHistory: [...prev.caseHistory, completedCase],
+                }));
+            }
 
-      try {
-          const result = await evaluatePerformance(historyToEvaluate, caseDetails.objetivoJugador);
-          setEvaluation(result);
-          if (result.puntaje >= 50 && !caseDetails.isGuided) { // Guided cases don't count for difficulty progression
-              setCompletedCases(c => c + 1);
-          }
-      } catch (err) {
-          setError("No se pudo obtener la evaluación. Cierra esta ventana para volver al menú.");
-          console.error(err);
-      } finally {
-          setIsLoading(false);
-      }
-  };
+        } catch (error) {
+            console.error("Error getting evaluation", error);
+            // set a default evaluation on error
+            setEvaluation({
+                puntaje: 0,
+                analisis: "No se pudo generar la evaluación debido a un error.",
+                fortalezas: "-",
+                debilidades: "-",
+                consejos: "Intenta jugar otro caso."
+            });
+        }
+    };
 
-  const renderGameState = () => {
-    switch (gameState) {
-      case GameState.CASE_SELECTION:
-        return <CaseSelectionScreen 
-          onSelectCase={handleSelectCase} 
-          onSelectGuidedCase={handleSelectGuidedCase}
-          isLoading={isLoading}
-          error={error}
-          completedCases={completedCases}
-          username={username}
-          onUsernameChange={setUsername}
-        />;
-      case GameState.PRE_TRIAL:
-        if (!caseDetails) return null; // Or show an error screen
-        return <PreTrialScreen 
-          caseDetails={caseDetails}
-          onPreTrialComplete={handlePreTrialComplete}
-        />;
-      case GameState.IN_TRIAL:
-        if (!caseDetails) return null;
-        return <TrialScreen
-            caseDetails={caseDetails}
-            narrative={narrative}
-            stageFeedback={stageFeedback}
-            trialHistory={trialHistory}
-            isLoading={isLoading}
-            error={error}
-            playerInput={playerInput}
-            onPlayerInputChange={setPlayerInput}
-            onSubmit={handleSubmitAction}
-            onConclude={() => handleConcludeTrial()}
-            isReadOnly={isReadOnly}
-            timeLeft={timeLeft}
-            setTimeLeft={setTimeLeft}
-            isTimerActive={isTimerActive}
-            setTimerActive={setTimerActive}
-        />
-      case GameState.TRIAL_END:
-        // The modal is rendered outside of this switch, this state just triggers it.
-        // We can show a background or nothing.
-        return null;
-      default:
-        return <div>Estado de juego desconocido.</div>;
-    }
-  }
+    const handleUsernameChange = (name: string) => {
+        setGameState(prev => ({ ...prev, username: name }));
+    };
+    
+    const handleAvatarSettingsChange = (newSettings: AvatarSettings) => {
+         setGameState(prev => ({ ...prev, avatarSettings: newSettings }));
+    };
 
-  return (
-    <div className="bg-slate-900 text-slate-200 min-h-screen font-sans">
-      <main className="container mx-auto px-4 py-8">
-        <Header 
-          onReset={handleReset} 
-          avatarSettings={avatarSettings} 
-          onOpenAvatarModal={() => setAvatarModalOpen(true)}
-          username={username}
-        />
-        <div className="mt-8">
-            {renderGameState()}
+    const renderContent = () => {
+        switch (gameState.stage) {
+            case 'pre-trial':
+                return gameState.currentCase && <PreTrialScreen caseDetails={gameState.currentCase} onStartTrial={handleStartTrial} />;
+            case 'trial':
+                return gameState.currentCase && <TrialScreen caseDetails={gameState.currentCase} trialHistory={trialHistory} onSubmitTurn={handleSubmitTurn} onADRResponse={handleADRResponse} isAiThinking={isAiThinking} />;
+            case 'case-selection':
+            default:
+                return (
+                    <CaseSelectionScreen
+                        onSelectCase={handleSelectCase}
+                        onSelectGuidedCase={handleSelectGuidedCase}
+                        isLoading={gameState.isLoading}
+                        error={gameState.error}
+                        completedCases={gameState.caseHistory.length}
+                        caseHistory={gameState.caseHistory}
+                        username={gameState.username}
+                        onUsernameChange={handleUsernameChange}
+                    />
+                );
+        }
+    };
+
+    return (
+        <div className="bg-slate-900 text-slate-200 min-h-screen flex flex-col items-center p-4 md:p-8 font-sans">
+            <Header 
+                onReset={handleReset} 
+                avatarSettings={gameState.avatarSettings}
+                onOpenAvatarModal={() => setIsAvatarModalOpen(true)}
+                username={gameState.username}
+            />
+            <main className="w-full max-w-5xl flex-grow mt-8 flex flex-col">
+                {renderContent()}
+            </main>
+            <EndScreenModal
+                isOpen={gameState.stage === 'end-screen'}
+                onClose={handleReset}
+                evaluation={evaluation}
+                caseDetails={gameState.currentCase}
+            />
+            <AvatarModal
+                isOpen={isAvatarModalOpen}
+                onClose={() => setIsAvatarModalOpen(false)}
+                settings={gameState.avatarSettings}
+                onSettingsChange={handleAvatarSettingsChange}
+            />
         </div>
-      </main>
-      <EndScreenModal 
-        isOpen={gameState === GameState.TRIAL_END}
-        onClose={handleReset}
-        evaluation={evaluation}
-        isLoading={isLoading}
-        error={error}
-      />
-      <AvatarModal
-        isOpen={isAvatarModalOpen}
-        onClose={() => setAvatarModalOpen(false)}
-        settings={avatarSettings}
-        onSettingsChange={setAvatarSettings}
-      />
-    </div>
-  );
+    );
 }
 
 export default App;
