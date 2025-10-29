@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { LEGAL_AREAS } from '../constants';
 import LoadingSpinner from './LoadingSpinner';
 
@@ -7,16 +7,51 @@ interface CaseSelectionScreenProps {
     isLoading: boolean;
     error: string | null;
     completedCases: number;
+    username: string;
+    onUsernameChange: (name: string) => void;
 }
 
-const CaseSelectionScreen: React.FC<CaseSelectionScreenProps> = ({ onSelectCase, isLoading, error, completedCases }) => {
-    
+const CaseSelectionScreen: React.FC<CaseSelectionScreenProps> = ({ onSelectCase, isLoading, error, completedCases, username, onUsernameChange }) => {
+    const [nameInput, setNameInput] = useState('');
+
     const getDifficultyInfo = () => {
         if (completedCases < 2) return { level: 'Introductorio', next: 'Intermedio', goal: 2 };
         if (completedCases < 5) return { level: 'Intermedio', next: 'Avanzado', goal: 5 };
         return { level: 'Avanzado', next: null, goal: Infinity };
     };
 
+    const handleNameSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (nameInput.trim()) {
+            onUsernameChange(nameInput.trim());
+        }
+    };
+
+    if (!username) {
+        return (
+             <div className="flex flex-col items-center justify-center animate-fade-in h-full">
+                <div className="bg-slate-800 p-8 rounded-lg border border-slate-700 w-full max-w-md text-center shadow-2xl">
+                    <h2 className="text-3xl font-bold mb-4 font-serif text-blue-300">Bienvenido a tu Bufete</h2>
+                    <p className="text-slate-400 mb-6">Para comenzar, por favor ingresa tu nombre de Abogado.</p>
+                    <form onSubmit={handleNameSubmit} className="flex flex-col sm:flex-row gap-2">
+                        <input
+                            type="text"
+                            value={nameInput}
+                            onChange={(e) => setNameInput(e.target.value)}
+                            placeholder="Ej: A. Pérez"
+                            className="flex-grow px-4 py-3 bg-slate-900 border border-slate-600 rounded-md text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            aria-label="Nombre de Abogado"
+                            required
+                        />
+                        <button type="submit" className="px-6 py-3 bg-blue-600 text-white font-bold rounded-md hover:bg-blue-500 transition-colors">
+                            Guardar
+                        </button>
+                    </form>
+                </div>
+            </div>
+        );
+    }
+    
     const difficultyInfo = getDifficultyInfo();
 
     if (isLoading) {
@@ -25,7 +60,7 @@ const CaseSelectionScreen: React.FC<CaseSelectionScreenProps> = ({ onSelectCase,
 
     return (
         <div className="flex flex-col items-center animate-fade-in">
-            <h2 className="text-3xl font-bold text-center mb-2 font-serif">Bienvenido a la Corte</h2>
+            <h2 className="text-3xl font-bold text-center mb-2 font-serif">Bienvenido de vuelta, Abogado {username}</h2>
             <p className="text-lg text-slate-400 text-center mb-4">Elige un área del derecho para comenzar tu próximo caso.</p>
             
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 mb-8 w-full max-w-2xl text-center">

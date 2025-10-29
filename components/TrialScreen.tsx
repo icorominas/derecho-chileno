@@ -1,177 +1,180 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { CaseDetails, TrialStep, StageFeedback } from '../types';
-import { advanceTrial } from '../services/geminiService';
+
+import React, { useState, useEffect, useRef } from 'react';
+import type { CaseDetails, StageFeedback } from '../types';
 import LoadingSpinner from './LoadingSpinner';
 import GlossaryModal from './GlossaryModal';
+import NotepadModal from './NotepadModal';
 
 interface TrialScreenProps {
     caseDetails: CaseDetails;
-    onTrialEnd: (history: TrialStep[]) => void;
+    narrative: string;
+    stageFeedback: StageFeedback | null;
+    isLoading: boolean;
+    error: string | null;
+    playerInput: string;
+    onPlayerInputChange: (value: string) => void;
+    onSubmit: () => void;
+    onConclude: () => void;
+    isReadOnly: boolean;
+    timeLeft: number;
+    setTimeLeft: (value: number) => void;
+    isTimerActive: boolean;
+    setTimerActive: (value: boolean) => void;
 }
 
-const FIVE_MINUTES = 5 * 60;
+const Timer: React.FC<{ timeLeft: number; setTimeLeft: (value: number) => void; isTimerActive: boolean; setTimerActive: (value: boolean) => void; onConclude: () => void; }> = ({ timeLeft, setTimeLeft, isTimerActive, setTimerActive, onConclude }) => {
+    useEffect(() => {
+        if (!isTimerActive) return;
 
-const TrialScreen: React.FC<TrialScreenProps> = ({ caseDetails, onTrialEnd }) => {
-    const [narrative, setNarrative] = useState<string>("El juicio está por comenzar. Como abogado, tu objetivo es: " + caseDetails.objetivoJugador + ". Revisa la evidencia y prepárate para tu primera intervención.");
-    const [history, setHistory] = useState<TrialStep[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [error, setError] = useState<string | null>(null);
-    const [playerInput, setPlayerInput] = useState('');
-    const [stageFeedback, setStageFeedback] = useState<StageFeedback | null>(null);
+        if (timeLeft <= 0) {
+            setTimerActive(false);
+            onConclude();
+            return;
+        }
+
+        const timerId = setInterval(() => {
+            setTimeLeft(timeLeft - 1);
+        }, 1000);
+
+        return () => clearInterval(timerId);
+    }, [timeLeft, isTimerActive, setTimeLeft, setTimerActive, onConclude]);
+
+    const minutes = Math.floor(timeLeft / 60);
+    const seconds = timeLeft % 60;
+
+    return (
+        <div className="text-center font-mono text-lg bg-slate-900/50 p-2 rounded-md">
+            Tiempo Restante: <span className={timeLeft < 60 ? 'text-red-400' : 'text-yellow-300'}>{minutes}:{seconds < 10 ? `0${seconds}` : seconds}</span>
+        </div>
+    );
+};
+
+
+const TrialScreen: React.FC<TrialScreenProps> = ({
+    caseDetails,
+    narrative,
+    stageFeedback,
+    isLoading,
+    error,
+    playerInput,
+    onPlayerInputChange,
+    onSubmit,
+    onConclude,
+    isReadOnly,
+    timeLeft,
+    setTimeLeft,
+    isTimerActive,
+    setTimerActive,
+}) => {
     const [isGlossaryOpen, setGlossaryOpen] = useState(false);
-    const [timeLeft, setTimeLeft] = useState(FIVE_MINUTES);
-    const [isTimerActive, setTimerActive] = useState(false);
-
+    const [isNotepadOpen, setNotepadOpen] = useState(false);
     const narrativeEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         narrativeEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [narrative, stageFeedback]);
 
-    useEffect(() => {
-        if (!caseDetails.esCivil && isTimerActive) {
-            if (timeLeft <= 0) {
-                handleSubmit();
-                return;
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === 'Enter' && !e.shiftKey && !caseDetails.esCivil) {
+            e.preventDefault();
+            if (!isLoading && playerInput.trim()) {
+                onSubmit();
             }
-            const timerId = setInterval(() => {
-                setTimeLeft(t => t - 1);
-            }, 1000);
-            return () => clearInterval(timerId);
         }
-    }, [isTimerActive, timeLeft, caseDetails.esCivil]);
-    
-    const startTurn = useCallback(() => {
-        if (!caseDetails.esCivil) {
-            setTimeLeft(FIVE_MINUTES);
-            setTimerActive(true);
-        }
-    }, [caseDetails.esCivil]);
-
-    useEffect(() => {
-        startTurn();
-    }, []);
-
-    const handleSubmit = useCallback(async () => {
-        if (!playerInput.trim() && !caseDetails.esCivil) {
-            setError("Debes presentar un argumento para proceder.");
-            return;
-        }
-        setIsLoading(true);
-        setError(null);
-        setTimerActive(false);
-
-        const newStep: TrialStep = {
-            accion: caseDetails.esCivil 
-                ? `Presentación de escrito: ${playerInput.substring(0, 50)}...` 
-                : `Argumento oral: ${playerInput.substring(0, 50)}...`,
-            narrativa: narrative,
-            submission: playerInput,
-        };
-        const newHistory = [...history, newStep];
-        setHistory(newHistory);
-        
-        try {
-            const result = await advanceTrial(caseDetails, newHistory, playerInput);
-            setNarrative(result.narrativa);
-            setStageFeedback(result.stageFeedback ?? null);
-            setPlayerInput('');
-            
-            if (result.juegoTerminado) {
-                const finalStep: TrialStep = { accion: "Conclusión del juicio.", narrativa: result.narrativa };
-                onTrialEnd([...newHistory, finalStep]);
-            } else {
-                startTurn();
-            }
-        } catch (err) {
-            setError("La IA no pudo continuar el juicio. Puedes intentar de nuevo o concluir el caso.");
-            console.error(err);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [playerInput, narrative, history, caseDetails, onTrialEnd, startTurn]);
-    
-    const formatTime = (seconds: number) => {
-        const minutes = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
     return (
         <>
-        <GlossaryModal isOpen={isGlossaryOpen} onClose={() => setGlossaryOpen(false)} terms={caseDetails.glossary} />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
-            <aside className="lg:col-span-1 bg-slate-800/50 border border-slate-700 rounded-lg p-6 self-start">
-                <div className="flex justify-between items-center border-b border-slate-600 pb-3 mb-4">
-                    <h2 className="text-2xl font-bold text-blue-300 font-serif">{caseDetails.titulo}</h2>
-                    <button onClick={() => setGlossaryOpen(true)} className="text-sm bg-slate-700 px-3 py-1 rounded hover:bg-slate-600">Glosario</button>
-                </div>
-                <div className="space-y-4">
-                     <div>
-                        <h3 className="font-semibold text-slate-300">Dificultad</h3>
-                        <p className="text-slate-400">{caseDetails.dificultad}</p>
+            <GlossaryModal isOpen={isGlossaryOpen} onClose={() => setGlossaryOpen(false)} terms={caseDetails.glossary} />
+            <NotepadModal isOpen={isNotepadOpen} onClose={() => setNotepadOpen(false)} caseId={caseDetails.titulo} />
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
+                <aside className="lg:col-span-1 bg-slate-800/50 border border-slate-700 rounded-lg p-6 self-start sticky top-8">
+                    <div className="flex justify-between items-center border-b border-slate-600 pb-3 mb-4">
+                        <h2 className="text-2xl font-bold text-blue-300 font-serif">{caseDetails.titulo}</h2>
                     </div>
-                     <div>
-                        <h3 className="font-semibold text-slate-300">Tu Objetivo</h3>
-                        <p className="text-slate-400 font-serif italic">"{caseDetails.objetivoJugador}"</p>
+                    <div className="space-y-4">
+                        <div>
+                            <h3 className="font-semibold text-slate-300">Tu Objetivo</h3>
+                            <p className="text-slate-400 font-serif italic">"{caseDetails.objetivoJugador}"</p>
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-slate-300">Evidencia</h3>
+                            <ul className="list-disc list-inside text-slate-400">
+                                {caseDetails.evidencia.map(e => <li key={e}>{e}</li>)}
+                            </ul>
+                        </div>
+                         <div className="flex gap-2 pt-4 border-t border-slate-700">
+                             <button onClick={() => setGlossaryOpen(true)} className="text-sm bg-slate-700 px-3 py-2 rounded-md hover:bg-slate-600 w-full">Glosario</button>
+                             <button onClick={() => setNotepadOpen(true)} className="text-sm bg-slate-700 px-3 py-2 rounded-md hover:bg-slate-600 w-full">Notas</button>
+                        </div>
+                         {!caseDetails.esCivil && (
+                             <div className="pt-4 border-t border-slate-700">
+                                 <Timer timeLeft={timeLeft} setTimeLeft={setTimeLeft} isTimerActive={isTimerActive} setTimerActive={setTimerActive} onConclude={onConclude} />
+                             </div>
+                         )}
                     </div>
-                    <div>
-                        <h3 className="font-semibold text-slate-300">Evidencia Disponible</h3>
-                        <ul className="list-disc list-inside text-slate-400">
-                            {caseDetails.evidencia.map(e => <li key={e}>{e}</li>)}
-                        </ul>
-                    </div>
-                </div>
-            </aside>
+                </aside>
+                <div className="lg:col-span-2 bg-slate-800 border border-slate-700 rounded-lg p-6 flex flex-col min-h-[80vh]">
+                    <div className="flex-grow overflow-y-auto mb-4 pr-2 max-h-[55vh]">
+                        <h3 className="text-2xl font-bold text-blue-300 mb-4 font-serif">Desarrollo del Juicio</h3>
+                        <p className="whitespace-pre-wrap text-slate-300 font-serif leading-relaxed">{narrative}</p>
 
-            <div className="lg:col-span-2 bg-slate-800 border border-slate-700 rounded-lg p-6 flex flex-col min-h-[70vh]">
-                <div className="flex-grow overflow-y-auto pr-2 mb-6 max-h-[40vh] min-h-[200px]">
-                    <p className="text-slate-300 whitespace-pre-wrap font-serif text-lg leading-relaxed">{narrative}</p>
-                    <div ref={narrativeEndRef} />
-                </div>
-
-                {stageFeedback && (
-                    <div className="mb-4 p-4 border border-blue-800 bg-blue-900/50 rounded-lg animate-fade-in">
-                        <h4 className="font-bold text-blue-300">Retroalimentación de la Etapa:</h4>
-                        <p className="text-slate-300">{stageFeedback.analisis}</p>
-                        {stageFeedback.citaLegal && <p className="text-xs text-slate-500 mt-1 italic">{stageFeedback.citaLegal}</p>}
+                        {stageFeedback && (
+                            <div className="mt-6 p-4 rounded-lg bg-slate-900/50 border border-blue-800 animate-fade-in">
+                                <h4 className="font-bold text-blue-300">Retroalimentación del Turno</h4>
+                                <p className="text-slate-300 mt-2">{stageFeedback.analisis}</p>
+                                {stageFeedback.citaLegal && <p className="text-xs text-slate-500 mt-2 italic">Ref: {stageFeedback.citaLegal}</p>}
+                            </div>
+                        )}
+                        <div ref={narrativeEndRef} />
                     </div>
-                )}
 
-                <div className="mt-auto pt-6 border-t border-slate-700">
-                    {isLoading ? <LoadingSpinner message="El juicio avanza..." /> : (
-                        <>
-                            {error && <p className="text-red-400 mb-4">{error}</p>}
-                            <div className="flex justify-between items-center mb-2">
-                                <h3 className="text-xl font-bold">
-                                    {caseDetails.esCivil ? "Redacta tu próximo escrito:" : "Prepara tu argumento oral:"}
-                                </h3>
-                                {!caseDetails.esCivil && (
-                                     <div className={`text-lg font-mono px-3 py-1 rounded ${timeLeft < 60 ? 'bg-red-500 text-white' : 'bg-slate-700'}`}>
-                                        {formatTime(timeLeft)}
+                    <div className="mt-auto pt-6 border-t border-slate-700">
+                         {isLoading && <LoadingSpinner />}
+                         {error && <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-md mb-4 text-center">{error}</div>}
+                        
+                        {!isReadOnly && !isLoading && (
+                            <div className="space-y-4">
+                                {caseDetails.esCivil ? (
+                                     <div>
+                                         <h3 className="text-xl font-bold mb-2">Presentar Escrito</h3>
+                                         <p className="text-slate-400 mb-4">Redacta y presenta el siguiente escrito según lo que corresponda en esta etapa del juicio.</p>
+                                         <textarea
+                                            value={playerInput}
+                                            onChange={(e) => onPlayerInputChange(e.target.value)}
+                                            placeholder="Señor Juez..."
+                                            className="w-full h-40 p-2 bg-slate-900 border border-slate-600 rounded-md text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            disabled={isLoading}
+                                        />
+                                     </div>
+                                ) : (
+                                    <div>
+                                         <h3 className="text-xl font-bold mb-2">Tu Argumento</h3>
+                                         <p className="text-slate-400 mb-4">Presenta tu argumento oralmente. Sé conciso y fundamenta bien tu posición.</p>
+                                        <textarea
+                                            value={playerInput}
+                                            onChange={(e) => onPlayerInputChange(e.target.value)}
+                                            placeholder="Señoría, con el debido respeto..."
+                                            className="w-full h-24 p-2 bg-slate-900 border border-slate-600 rounded-md text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            disabled={isLoading}
+                                            onKeyDown={handleKeyDown}
+                                        />
                                     </div>
                                 )}
+                                <div className="flex flex-col sm:flex-row gap-4">
+                                    <button onClick={onSubmit} className="w-full p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors disabled:bg-slate-600 font-bold" disabled={isLoading || !playerInput.trim()}>
+                                        {caseDetails.esCivil ? 'Presentar Escrito' : 'Presentar Argumento'}
+                                    </button>
+                                    <button onClick={onConclude} className="w-full sm:w-auto p-4 bg-slate-700 text-slate-200 rounded-lg hover:bg-slate-600 transition-colors disabled:bg-slate-600" disabled={isLoading}>
+                                        Concluir Juicio
+                                    </button>
+                                </div>
                             </div>
-                            <textarea
-                                value={playerInput}
-                                onChange={(e) => setPlayerInput(e.target.value)}
-                                placeholder={caseDetails.esCivil ? "Escribe tus argumentos, peticiones y fundamentos de derecho aquí..." : "Escribe tu argumento para presentarlo ante el tribunal..."}
-                                className="w-full h-32 p-2 bg-slate-900 border border-slate-600 rounded-md text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                disabled={isLoading}
-                            />
-                             <div className="flex gap-4 mt-4">
-                                <button onClick={handleSubmit} className="w-full p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors disabled:bg-slate-600 font-bold" disabled={isLoading}>
-                                    {caseDetails.esCivil ? "Presentar Escrito" : "Presentar Argumento"}
-                                </button>
-                                <button onClick={() => onTrialEnd(history)} className="px-4 py-3 bg-slate-600 text-slate-200 rounded-lg hover:bg-red-700 transition-colors">
-                                    Concluir
-                                </button>
-                             </div>
-                        </>
-                    )}
+                        )}
+                    </div>
                 </div>
             </div>
-        </div>
         </>
     );
 };

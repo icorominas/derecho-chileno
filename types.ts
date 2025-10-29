@@ -1,5 +1,6 @@
 export enum GameState {
     CASE_SELECTION,
+    PRE_TRIAL,
     IN_TRIAL,
     TRIAL_END,
 }
@@ -25,6 +26,8 @@ export interface CaseDetails {
     dificultad: 'Introductorio' | 'Intermedio' | 'Avanzado';
     esCivil: boolean;
     glossary: GlossaryTerm[];
+    entrevistaCliente: string;
+    objetivosDemanda: string;
 }
 
 export interface TrialStep {
@@ -51,4 +54,20 @@ export interface Evaluation {
     fortalezas: string;
     debilidades: string;
     consejos: string;
+}
+
+export interface AvatarSettings {
+  hairstyle: 'corto' | 'medio' | 'largo' | 'calvo' | 'recogido';
+  hairColor: string;
+  skinTone: string;
+  suitColor: string;
+  tieColor: string;
+  facialHair: 'none' | 'barba' | 'bigote';
+  glasses: 'none' | 'redondas' | 'rectangulares';
+}
+
+export interface DemandEvaluation {
+    esAdmisible: boolean;
+    analisis: string;
+    narrativaSiguiente: string;
 }
