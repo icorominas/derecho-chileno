@@ -1,14 +1,17 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
-import type { CaseDetails, StageFeedback } from '../types';
+import type { CaseDetails, StageFeedback, TrialStep } from '../types';
 import LoadingSpinner from './LoadingSpinner';
 import GlossaryModal from './GlossaryModal';
 import NotepadModal from './NotepadModal';
+import GuidanceBox from './GuidanceBox';
 
 interface TrialScreenProps {
     caseDetails: CaseDetails;
     narrative: string;
     stageFeedback: StageFeedback | null;
+    trialHistory: TrialStep[];
     isLoading: boolean;
     error: string | null;
     playerInput: string;
@@ -54,6 +57,7 @@ const TrialScreen: React.FC<TrialScreenProps> = ({
     caseDetails,
     narrative,
     stageFeedback,
+    trialHistory,
     isLoading,
     error,
     playerInput,
@@ -82,6 +86,11 @@ const TrialScreen: React.FC<TrialScreenProps> = ({
             }
         }
     };
+
+    const currentTurn = trialHistory.length;
+    const guidedStep = (caseDetails.isGuided && caseDetails.guidedSteps)
+        ? caseDetails.guidedSteps.find(s => s.trigger === `trial-turn-${currentTurn}`)
+        : null;
 
     return (
         <>
@@ -135,42 +144,45 @@ const TrialScreen: React.FC<TrialScreenProps> = ({
                          {error && <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-md mb-4 text-center">{error}</div>}
                         
                         {!isReadOnly && !isLoading && (
-                            <div className="space-y-4">
-                                {caseDetails.esCivil ? (
-                                     <div>
-                                         <h3 className="text-xl font-bold mb-2">Presentar Escrito</h3>
-                                         <p className="text-slate-400 mb-4">Redacta y presenta el siguiente escrito según lo que corresponda en esta etapa del juicio.</p>
-                                         <textarea
-                                            value={playerInput}
-                                            onChange={(e) => onPlayerInputChange(e.target.value)}
-                                            placeholder="Señor Juez..."
-                                            className="w-full h-40 p-2 bg-slate-900 border border-slate-600 rounded-md text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            disabled={isLoading}
-                                        />
-                                     </div>
-                                ) : (
-                                    <div>
-                                         <h3 className="text-xl font-bold mb-2">Tu Argumento</h3>
-                                         <p className="text-slate-400 mb-4">Presenta tu argumento oralmente. Sé conciso y fundamenta bien tu posición.</p>
-                                        <textarea
-                                            value={playerInput}
-                                            onChange={(e) => onPlayerInputChange(e.target.value)}
-                                            placeholder="Señoría, con el debido respeto..."
-                                            className="w-full h-24 p-2 bg-slate-900 border border-slate-600 rounded-md text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            disabled={isLoading}
-                                            onKeyDown={handleKeyDown}
-                                        />
+                            <>
+                                {guidedStep && <GuidanceBox title={guidedStep.title} text={guidedStep.text} />}
+                                <div className="space-y-4">
+                                    {caseDetails.esCivil ? (
+                                         <div>
+                                             <h3 className="text-xl font-bold mb-2">Presentar Escrito</h3>
+                                             <p className="text-slate-400 mb-4">Redacta y presenta el siguiente escrito según lo que corresponda en esta etapa del juicio.</p>
+                                             <textarea
+                                                value={playerInput}
+                                                onChange={(e) => onPlayerInputChange(e.target.value)}
+                                                placeholder="Señor Juez..."
+                                                className="w-full h-40 p-2 bg-slate-900 border border-slate-600 rounded-md text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                disabled={isLoading}
+                                            />
+                                         </div>
+                                    ) : (
+                                        <div>
+                                             <h3 className="text-xl font-bold mb-2">Tu Argumento</h3>
+                                             <p className="text-slate-400 mb-4">Presenta tu argumento oralmente. Sé conciso y fundamenta bien tu posición.</p>
+                                            <textarea
+                                                value={playerInput}
+                                                onChange={(e) => onPlayerInputChange(e.target.value)}
+                                                placeholder="Señoría, con el debido respeto..."
+                                                className="w-full h-24 p-2 bg-slate-900 border border-slate-600 rounded-md text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                disabled={isLoading}
+                                                onKeyDown={handleKeyDown}
+                                            />
+                                        </div>
+                                    )}
+                                    <div className="flex flex-col sm:flex-row gap-4">
+                                        <button onClick={onSubmit} className="w-full p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors disabled:bg-slate-600 font-bold" disabled={isLoading || !playerInput.trim()}>
+                                            {caseDetails.esCivil ? 'Presentar Escrito' : 'Presentar Argumento'}
+                                        </button>
+                                        <button onClick={onConclude} className="w-full sm:w-auto p-4 bg-slate-700 text-slate-200 rounded-lg hover:bg-slate-600 transition-colors disabled:bg-slate-600" disabled={isLoading}>
+                                            Concluir Juicio
+                                        </button>
                                     </div>
-                                )}
-                                <div className="flex flex-col sm:flex-row gap-4">
-                                    <button onClick={onSubmit} className="w-full p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors disabled:bg-slate-600 font-bold" disabled={isLoading || !playerInput.trim()}>
-                                        {caseDetails.esCivil ? 'Presentar Escrito' : 'Presentar Argumento'}
-                                    </button>
-                                    <button onClick={onConclude} className="w-full sm:w-auto p-4 bg-slate-700 text-slate-200 rounded-lg hover:bg-slate-600 transition-colors disabled:bg-slate-600" disabled={isLoading}>
-                                        Concluir Juicio
-                                    </button>
                                 </div>
-                            </div>
+                            </>
                         )}
                     </div>
                 </div>

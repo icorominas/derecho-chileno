@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import { LEGAL_AREAS } from '../constants';
 import LoadingSpinner from './LoadingSpinner';
+import { TUTORIAL_CASE_DESPIDO_INJUSTIFICADO } from '../guidedCases';
+import type { CaseDetails } from '../types';
 
 interface CaseSelectionScreenProps {
     onSelectCase: (area: string, isCivil: boolean) => void;
+    onSelectGuidedCase: (guidedCase: CaseDetails) => void;
     isLoading: boolean;
     error: string | null;
     completedCases: number;
-    username: string;
+    username:string;
     onUsernameChange: (name: string) => void;
 }
 
-const CaseSelectionScreen: React.FC<CaseSelectionScreenProps> = ({ onSelectCase, isLoading, error, completedCases, username, onUsernameChange }) => {
+const CaseSelectionScreen: React.FC<CaseSelectionScreenProps> = ({ onSelectCase, onSelectGuidedCase, isLoading, error, completedCases, username, onUsernameChange }) => {
     const [nameInput, setNameInput] = useState('');
 
     const getDifficultyInfo = () => {
@@ -61,33 +64,52 @@ const CaseSelectionScreen: React.FC<CaseSelectionScreenProps> = ({ onSelectCase,
     return (
         <div className="flex flex-col items-center animate-fade-in">
             <h2 className="text-3xl font-bold text-center mb-2 font-serif">Bienvenido de vuelta, Abogado {username}</h2>
-            <p className="text-lg text-slate-400 text-center mb-4">Elige un área del derecho para comenzar tu próximo caso.</p>
-            
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 mb-8 w-full max-w-2xl text-center">
-                <p className="font-bold text-blue-300">Nivel de Dificultad Actual: <span className="text-white">{difficultyInfo.level}</span></p>
-                {difficultyInfo.next && (
-                     <p className="text-sm text-slate-400">Completa {difficultyInfo.goal - completedCases} caso(s) más con éxito para desbloquear el nivel '{difficultyInfo.next}'.</p>
-                )}
-            </div>
+            <p className="text-lg text-slate-400 text-center mb-8">Elige un área del derecho para comenzar o perfecciona tus habilidades con un caso guiado.</p>
 
-            {error && <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-md mb-6 w-full max-w-md text-center">{error}</div>}
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-                {LEGAL_AREAS.map((area) => (
-                    <button
-                        key={area.name}
-                        onClick={() => onSelectCase(area.name, area.isCivil)}
-                        className="bg-slate-800 border border-slate-700 rounded-lg p-6 text-left hover:bg-slate-700 hover:border-blue-500 transition-all duration-300 transform hover:-translate-y-1"
-                    >
-                        <div className="flex items-start">
-                           <span className="text-3xl mr-4">{area.icon}</span>
-                            <div>
-                                <h3 className="text-xl font-bold text-blue-300">{area.name}</h3>
-                                <p className="text-slate-400 mt-1">{area.description}</p>
-                            </div>
+            <div className="w-full max-w-4xl mb-12">
+                <h3 className="text-xl font-bold text-center mb-4 text-blue-300 font-serif border-b border-slate-700 pb-2">Casos Guiados (Tutorial)</h3>
+                <button
+                    onClick={() => onSelectGuidedCase(TUTORIAL_CASE_DESPIDO_INJUSTIFICADO)}
+                    className="w-full bg-slate-800 border-2 border-blue-600 rounded-lg p-6 text-left hover:bg-slate-700 hover:border-blue-500 transition-all duration-300 transform hover:-translate-y-1 shadow-lg shadow-blue-600/20"
+                >
+                    <div className="flex items-center">
+                       <span className="text-3xl mr-4">🎓</span>
+                        <div>
+                            <h4 className="text-xl font-bold text-blue-300">{TUTORIAL_CASE_DESPIDO_INJUSTIFICADO.titulo}</h4>
+                            <p className="text-slate-400 mt-1">Aprende los conceptos básicos del litigio laboral en un caso de despido paso a paso.</p>
                         </div>
-                    </button>
-                ))}
+                    </div>
+                </button>
+            </div>
+            
+            <div className="w-full max-w-4xl">
+                 <h3 className="text-xl font-bold text-center mb-4 text-slate-300 font-serif border-b border-slate-700 pb-2">Generador de Casos</h3>
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 mb-8 w-full max-w-2xl text-center mx-auto">
+                    <p className="font-bold text-blue-300">Nivel de Dificultad Actual: <span className="text-white">{difficultyInfo.level}</span></p>
+                    {difficultyInfo.next && (
+                         <p className="text-sm text-slate-400">Completa {difficultyInfo.goal - completedCases} caso(s) más con éxito para desbloquear el nivel '{difficultyInfo.next}'.</p>
+                    )}
+                </div>
+
+                {error && <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-md mb-6 w-full max-w-md text-center mx-auto">{error}</div>}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+                    {LEGAL_AREAS.map((area) => (
+                        <button
+                            key={area.name}
+                            onClick={() => onSelectCase(area.name, area.isCivil)}
+                            className="bg-slate-800 border border-slate-700 rounded-lg p-6 text-left hover:bg-slate-700 hover:border-blue-500 transition-all duration-300 transform hover:-translate-y-1"
+                        >
+                            <div className="flex items-start">
+                               <span className="text-3xl mr-4">{area.icon}</span>
+                                <div>
+                                    <h3 className="text-xl font-bold text-blue-300">{area.name}</h3>
+                                    <p className="text-slate-400 mt-1">{area.description}</p>
+                                </div>
+                            </div>
+                        </button>
+                    ))}
+                </div>
             </div>
         </div>
     );

@@ -16,6 +16,12 @@ export interface GlossaryTerm {
     fuente?: string;
 }
 
+export interface GuidedStep {
+    trigger: string; // e.g., 'pre-trial-drafting', 'trial-turn-1'
+    title: string;
+    text: string;
+}
+
 export interface CaseDetails {
     titulo: string;
     resumen: string;
@@ -28,6 +34,8 @@ export interface CaseDetails {
     glossary: GlossaryTerm[];
     entrevistaCliente: string;
     objetivosDemanda: string;
+    isGuided?: boolean;
+    guidedSteps?: GuidedStep[];
 }
 
 export interface TrialStep {

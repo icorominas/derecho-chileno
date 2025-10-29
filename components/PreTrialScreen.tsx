@@ -4,6 +4,7 @@ import { startTrialAfterDemand } from '../services/geminiService';
 import LoadingSpinner from './LoadingSpinner';
 import GlossaryModal from './GlossaryModal';
 import CalendarAnimation from './CalendarAnimation';
+import GuidanceBox from './GuidanceBox';
 
 interface PreTrialScreenProps {
     caseDetails: CaseDetails;
@@ -68,10 +69,16 @@ const PreTrialScreen: React.FC<PreTrialScreenProps> = ({ caseDetails, onPreTrial
                 );
             case 'drafting':
             case 'feedback':
+                const guidedStep = (caseDetails.isGuided && caseDetails.guidedSteps)
+                    ? caseDetails.guidedSteps.find(s => s.trigger === 'pre-trial-drafting')
+                    : null;
+
                  return (
                     <div className="mt-auto pt-6 border-t border-slate-700">
                         {isLoading ? <LoadingSpinner message="Presentando demanda al tribunal..." /> : (
                             <>
+                                {guidedStep && <GuidanceBox title={guidedStep.title} text={guidedStep.text} />}
+
                                 <h3 className="text-xl font-bold mb-2">Redacta la Demanda</h3>
                                 <p className="text-slate-400 mb-4">Basado en la entrevista y la evidencia, redacta la demanda inicial. Asegúrate de individualizar a las partes, exponer los hechos y realizar las peticiones correspondientes.</p>
                                 
